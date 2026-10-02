@@ -478,9 +478,9 @@ public:
 					tex_w = (1.0f - t) * tex_sw + t * tex_ew;
 					if (tex_w > pDepthBuffer[i*ScreenSize().x + j])
 					{
-						draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
+						//draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
 
-						//draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1,1}), {float(j),float(i)});
+						draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w},  {1.0f,1.0f}), {float(j),float(i)});
 
 						//Draw(j, i, tex->Sample(tex_u / tex_w, tex_v / tex_w));
 						pDepthBuffer[i*ScreenSize().x + j] = tex_w;
@@ -545,8 +545,8 @@ public:
 					{
 
 						//draw.Image(tex,{float(j),float(i)});
-						draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
-						//draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1,1}), {float(j),float(i)});
+						//draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
+						draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1.0f,1.0f}), {float(j),float(i)});
 
 						pDepthBuffer[i*ScreenSize().x + j] = tex_w;
 					}
@@ -610,7 +610,33 @@ public:
 		return p;
 	}
 
+	tmesh flatmesh;
 
+	inline tmesh flatMesh()
+	{
+
+		tmesh p;
+
+		triangle fm;
+		
+		float plen = float(planelength /2);
+
+		fm.p[0] = { 0,0,0 }; fm.norm[0] = { 0, 1, 0, 0 }; fm.t[0] = { 0.25, 0.25 }; fm.col = olc::Colour::WHITE;
+		fm.p[1] = { 0,0,plen }; fm.norm[1] = { 0, 1, 0, 0 }; fm.t[1] = { 0.25, 0.0 }; fm.col = olc::Colour::WHITE;
+		fm.p[2] = { plen,0,plen }; fm.norm[2] = { 0, 1, 0, 0 }; fm.t[2] = { 0.5, 0.0 }; fm.col = olc::Colour::WHITE;
+		
+		triangle fm2;
+
+		fm2.p[0] = { 0,0,0 }; fm2.norm[0] = { 0, 1, 0, 0 }; fm2.t[0] = { 0.25, 0.25 }; fm2.col = olc::Colour::WHITE;
+		fm2.p[1] = { plen,0,plen }; fm2.norm[1] = { 0, 1, 0, 0 }; fm2.t[1] = { 0.5, 0.0 }; fm2.col = olc::Colour::WHITE;
+		fm2.p[2] = { plen,0,0 }; fm2.norm[2] = { 0, 1, 0, 0 }; fm2.t[2] = { 0.5, 0.25 }; fm2.col = olc::Colour::WHITE;
+
+
+		p.tris.push_back(fm);
+		p.tris.push_back(fm2);
+
+		return p;
+	}
 
 	float *pDepthBuffer = nullptr;
 
@@ -805,7 +831,7 @@ public:
 		// Store triagles for rastering later
 
 
-		// Draw Triangles
+		// // Draw Triangles
 		for (auto tri : trianglesMesh.tris)
 		{
 			triangle triProjected, triTransformed, triViewed;
@@ -904,6 +930,8 @@ public:
 					// Scale into view, we moved the normalising into cartesian space
 					// out of the matrix.vector function from the previous videos, so
 					// do this manually
+
+
 					triProjected.p[0] = Vector_Div(triProjected.p[0], triProjected.p[0].w);
 					triProjected.p[1] = Vector_Div(triProjected.p[1], triProjected.p[1].w);
 					triProjected.p[2] = Vector_Div(triProjected.p[2], triProjected.p[2].w);
@@ -916,11 +944,11 @@ public:
 					triProjected.p[1].y *= -1.0f;
 					triProjected.p[2].y *= -1.0f;
 
-					// Offset verts into visible normalised space
+					// // Offset verts into visible normalised space
 					olc::vf4d vOffsetView = { 1,1,0 };
-					triProjected.p[0] = triProjected.p[0] + vOffsetView;
-					triProjected.p[1] = triProjected.p[1] + vOffsetView;
-					triProjected.p[2] = triProjected.p[2] + vOffsetView;
+					triProjected.p[0] = (triProjected.p[0] + vOffsetView);
+					triProjected.p[1] = (triProjected.p[1] + vOffsetView);
+					triProjected.p[2] = (triProjected.p[2] + vOffsetView);
 					triProjected.p[0].x *= 0.5f * (float)ScreenSize().x;
 					triProjected.p[0].y *= 0.5f * (float)ScreenSize().y;
 					triProjected.p[1].x *= 0.5f * (float)ScreenSize().x;
@@ -928,13 +956,25 @@ public:
 					triProjected.p[2].x *= 0.5f * (float)ScreenSize().x;
 					triProjected.p[2].y *= 0.5f * (float)ScreenSize().y;
 
+
+					// triProjected.p[0] += vOffsetView;
+					// triProjected.p[1] += (triProjected.p[1] + vOffsetView);
+					// triProjected.p[2] += (triProjected.p[2] + vOffsetView);
+
+					// triProjected.p[0].x *= (0.5f * (float)ScreenSize().x);
+					// triProjected.p[0].y *= (0.5f * (float)ScreenSize().y);
+					// triProjected.p[1].x *= (0.5f * (float)ScreenSize().x);
+					// triProjected.p[1].y *= (0.5f * (float)ScreenSize().y);
+					// triProjected.p[2].x *= (0.5f * (float)ScreenSize().x);
+					// triProjected.p[2].y *= (0.5f * (float)ScreenSize().y);
+
 					// Store triangle for sorting
 					trianglesMesh.vecTrianglesToRaster.push_back(triProjected);
 				}			
 			}
 		}
 
-		// Sort triangles from back to front
+		//Sort triangles from back to front
 		// sort(trianglesMesh.vecTrianglesToRaster.begin(), trianglesMesh.vecTrianglesToRaster.end(), [](triangle &t1, triangle &t2)
 		// {
 		// 	float z1 = (t1.p[0].z + t1.p[1].z + t1.p[2].z) / 3.0f;
@@ -952,8 +992,8 @@ public:
 
 		
 		draw.SetViewMatrix(matView);
-		//draw.SetModelMatrix(matView);
-		//draw.SetCullMode(olc::CullMode::CounterClockWise);
+		draw.SetModelMatrix(matView);
+		draw.SetCullMode(olc::CullMode::CounterClockWise);
 
 
 		// Loop through all transformed, viewed, projected, and sorted triangles
@@ -1009,12 +1049,12 @@ public:
 			
 			for (auto &t : trianglesMesh.triangles)
 			{
-				TexturedTriangle(
-					t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
-					t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
-					t.p[2].x, t.p[2].y, t.t[2].u, t.t[2].v, t.t[2].w, 
-					sprtex1
-				);
+				// TexturedTriangle(
+				// 	t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
+				// 	t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
+				// 	t.p[2].x, t.p[2].y, t.t[2].u, t.t[2].v, t.t[2].w, 
+				// 	sprtex1
+				// );
 
 				olc::vf2d tp1;
 				olc::vf2d tp2;
@@ -1032,11 +1072,12 @@ public:
 
 		
 
-		//draw.Mesh(mesh2Dplane.layout, mesh2Dplane.pos, mesh2Dplane.col, mesh2Dplane.uv, im2DPlane);
+		draw.Mesh(mesh2Dplane.layout, {}, mesh2Dplane.col, mesh2Dplane.uv, im2DPlane);
 
 
 
-		olc::vf2d cpos = {float(1024 / 2), float(960/2)};
+
+		olc::vf2d cpos = {float(ScreenSize().x / 2), float(ScreenSize().y /2)};
 		draw.FilledCircle(cpos, 10.0f, olc::Colour::DARK_YELLOW);
 
 
