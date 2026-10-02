@@ -112,7 +112,6 @@ public:
 	{
 		std::list<triangle> triangles;
 		std::vector<triangle> tris;
-		std::vector<triangle> vecTrianglesToRaster;
 
 		std::vector<olc::vf4d> pos;
 		std::vector<olc::vf4d> norm;
@@ -161,6 +160,8 @@ public:
 
 	// mat4x4 Matrix_MakeProjection
 	// olc::mf4d example.projection(float fFovDegrees, float fAspectRatio, float fNear, float fFar)
+
+
 	olc::vf4d Matrix_MultiplyVector(olc::mf4d m, olc::vf4d &i)
 	{
 		olc::vf4d v;
@@ -171,16 +172,7 @@ public:
 		return v;
 	}
 
-	// template<typename Q>
-	// olc::vf4d Matrix_MultiplyVector(olc::mf4d me, olc::v_4d<Q>& v)
-	// {
-	// 	olc::v_4d<Q> vOut;
-	// 	vOut.x = Q(me(0, 0) * v.x + me(1, 0) * v.y + me(2, 0) * v.z + me(3, 0) * v.w);
-	// 	vOut.y = Q(me(0, 1) * v.x + me(1, 1) * v.y + me(2, 1) * v.z + me(3, 1) * v.w);
-	// 	vOut.z = Q(me(0, 2) * v.x + me(1, 2) * v.y + me(2, 2) * v.z + me(3, 2) * v.w);
-	// 	vOut.w = Q(me(0, 3) * v.x + me(1, 3) * v.y + me(2, 3) * v.z + me(3, 3) * v.w);
-	// 	return vOut;
-	// }
+
 
 	float Vector_DotProduct(olc::vf4d &v1, olc::vf4d &v2)
 	{
@@ -228,341 +220,6 @@ public:
 		return matrix;
 	}
 	
-
-	olc::vf4d Vector_IntersectPlane(olc::vf4d &plane_p, olc::vf4d &plane_n, olc::vf4d &lineStart, olc::vf4d &lineEnd, float &t)
-	{
-		plane_n = plane_n.norm();
-		float plane_d = -Vector_DotProduct(plane_n, plane_p);
-		float ad = Vector_DotProduct(lineStart, plane_n);
-		float bd = Vector_DotProduct(lineEnd, plane_n);
-		t = (-plane_d - ad) / (bd - ad);
-		olc::vf4d lineStartToEnd = lineEnd - lineStart;
-		olc::vf4d lineToIntersect = Vector_Mul(lineStartToEnd, t);
-		return lineStart + lineToIntersect;
-	}
-
-
-	int Triangle_ClipAgainstPlane(olc::vf4d plane_p, olc::vf4d plane_n, triangle &in_tri, triangle &out_tri1, triangle &out_tri2)
-	{
-		// Make sure plane normal is indeed normal
-		plane_n = plane_n.norm();
-
-		// Return signed shortest distance from point to plane, plane normal must be normalised
-		auto dist = [&](olc::vf4d &p)
-		{
-			olc::vf4d n = p.norm();
-			return (plane_n.x * p.x + plane_n.y * p.y + plane_n.z * p.z - Vector_DotProduct(plane_n, plane_p));
-		};
-
-		// Create two temporary storage arrays to classify points either side of plane
-		// If distance sign is positive, point lies on "inside" of plane
-		olc::vf4d* inside_points[3];  int nInsidePointCount = 0;
-		olc::vf4d* outside_points[3]; int nOutsidePointCount = 0;
-		vec2d* inside_tex[3]; int nInsideTexCount = 0;
-		vec2d* outside_tex[3]; int nOutsideTexCount = 0;
-
-
-		// Get signed distance of each point in triangle to plane
-		float d0 = dist(in_tri.p[0]);
-		float d1 = dist(in_tri.p[1]);
-		float d2 = dist(in_tri.p[2]);
-
-		if (d0 >= 0) { inside_points[nInsidePointCount++] = &in_tri.p[0]; inside_tex[nInsideTexCount++] = &in_tri.t[0]; }
-		else {
-			outside_points[nOutsidePointCount++] = &in_tri.p[0]; outside_tex[nOutsideTexCount++] = &in_tri.t[0];
-		}
-		if (d1 >= 0) {
-			inside_points[nInsidePointCount++] = &in_tri.p[1]; inside_tex[nInsideTexCount++] = &in_tri.t[1];
-		}
-		else {
-			outside_points[nOutsidePointCount++] = &in_tri.p[1];  outside_tex[nOutsideTexCount++] = &in_tri.t[1];
-		}
-		if (d2 >= 0) {
-			inside_points[nInsidePointCount++] = &in_tri.p[2]; inside_tex[nInsideTexCount++] = &in_tri.t[2];
-		}
-		else {
-			outside_points[nOutsidePointCount++] = &in_tri.p[2];  outside_tex[nOutsideTexCount++] = &in_tri.t[2];
-		}
-
-		// Now classify triangle points, and break the input triangle into 
-		// smaller output triangles if required. There are four possible
-		// outcomes...
-
-		if (nInsidePointCount == 0)
-		{
-			// All points lie on the outside of plane, so clip whole triangle
-			// It ceases to exist
-
-			return 0; // No returned triangles are valid
-		}
-
-		if (nInsidePointCount == 3)
-		{
-			// All points lie on the inside of plane, so do nothing
-			// and allow the triangle to simply pass through
-			out_tri1 = in_tri;
-
-			return 1; // Just the one returned original triangle is valid
-		}
-
-		if (nInsidePointCount == 1 && nOutsidePointCount == 2)
-		{
-			// Triangle should be clipped. As two points lie outside
-			// the plane, the triangle simply becomes a smaller triangle
-
-			// Copy appearance info to new triangle
-			out_tri1.col =  in_tri.col;
-			
-
-			// The inside point is valid, so keep that...
-			out_tri1.p[0] = *inside_points[0];
-			out_tri1.t[0] = *inside_tex[0];
-
-			// but the two new points are at the locations where the 
-			// original sides of the triangle (lines) intersect with the plane
-			float t;
-			out_tri1.p[1] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
-			out_tri1.t[1].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
-			out_tri1.t[1].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
-			out_tri1.t[1].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
-
-			out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[1], t);
-			out_tri1.t[2].u = t * (outside_tex[1]->u - inside_tex[0]->u) + inside_tex[0]->u;
-			out_tri1.t[2].v = t * (outside_tex[1]->v - inside_tex[0]->v) + inside_tex[0]->v;
-			out_tri1.t[2].w = t * (outside_tex[1]->w - inside_tex[0]->w) + inside_tex[0]->w;
-
-			return 1; // Return the newly formed single triangle
-		}
-
-		if (nInsidePointCount == 2 && nOutsidePointCount == 1)
-		{
-			// Triangle should be clipped. As two points lie inside the plane,
-			// the clipped triangle becomes a "quad". Fortunately, we can
-			// represent a quad with two new triangles
-
-			// Copy appearance info to new triangles
-			out_tri1.col =  in_tri.col;
-			
-
-			out_tri2.col =  in_tri.col;
-			
-
-			// The first triangle consists of the two inside points and a new
-			// point determined by the location where one side of the triangle
-			// intersects with the plane
-			out_tri1.p[0] = *inside_points[0];
-			out_tri1.p[1] = *inside_points[1];
-			out_tri1.t[0] = *inside_tex[0];
-			out_tri1.t[1] = *inside_tex[1];
-
-			float t;
-			out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
-			out_tri1.t[2].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
-			out_tri1.t[2].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
-			out_tri1.t[2].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
-
-			// The second triangle is composed of one of he inside points, a
-			// new point determined by the intersection of the other side of the 
-			// triangle and the plane, and the newly created point above
-			out_tri2.p[0] = *inside_points[1];
-			out_tri2.t[0] = *inside_tex[1];
-			out_tri2.p[1] = out_tri1.p[2];
-			out_tri2.t[1] = out_tri1.t[2];
-			out_tri2.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[1], *outside_points[0], t);
-			out_tri2.t[2].u = t * (outside_tex[0]->u - inside_tex[1]->u) + inside_tex[1]->u;
-			out_tri2.t[2].v = t * (outside_tex[0]->v - inside_tex[1]->v) + inside_tex[1]->v;
-			out_tri2.t[2].w = t * (outside_tex[0]->w - inside_tex[1]->w) + inside_tex[1]->w;
-
-			return 2; // Return two newly formed triangles which form a quad
-		}
-	}
-
-
-
-	void TexturedTriangle(	int x1, int y1, float u1, float v1, float w1,
-							int x2, int y2, float u2, float v2, float w2,
-							int x3, int y3, float u3, float v3, float w3,
-		olc::Image &tex)
-	{
-		if (y2 < y1)
-		{
-			std::swap(y1, y2);
-			std::swap(x1, x2);
-			std::swap(u1, u2);
-			std::swap(v1, v2);
-			std::swap(w1, w2);
-		}
-
-		if (y3 < y1)
-		{
-			std::swap(y1, y3);
-			std::swap(x1, x3);
-			std::swap(u1, u3);
-			std::swap(v1, v3);
-			std::swap(w1, w3);
-		}
-
-		if (y3 < y2)
-		{
-			std::swap(y2, y3);
-			std::swap(x2, x3);
-			std::swap(u2, u3);
-			std::swap(v2, v3);
-			std::swap(w2, w3);
-		}
-
-		int dy1 = y2 - y1;
-		int dx1 = x2 - x1;
-		float dv1 = v2 - v1;
-		float du1 = u2 - u1;
-		float dw1 = w2 - w1;
-
-		int dy2 = y3 - y1;
-		int dx2 = x3 - x1;
-		float dv2 = v3 - v1;
-		float du2 = u3 - u1;
-		float dw2 = w3 - w1;
-
-		float tex_u, tex_v, tex_w;
-
-		float dax_step = 0, dbx_step = 0,
-			du1_step = 0, dv1_step = 0,
-			du2_step = 0, dv2_step = 0,
-			dw1_step=0, dw2_step=0;
-
-		if (dy1) dax_step = dx1 / (float)abs(dy1);
-		if (dy2) dbx_step = dx2 / (float)abs(dy2);
-
-		if (dy1) du1_step = du1 / (float)abs(dy1);
-		if (dy1) dv1_step = dv1 / (float)abs(dy1);
-		if (dy1) dw1_step = dw1 / (float)abs(dy1);
-
-		if (dy2) du2_step = du2 / (float)abs(dy2);
-		if (dy2) dv2_step = dv2 / (float)abs(dy2);
-		if (dy2) dw2_step = dw2 / (float)abs(dy2);
-
-		if (dy1)
-		{
-			for (int i = y1; i <= y2; i++)
-			{
-				int ax = x1 + (float)(i - y1) * dax_step;
-				int bx = x1 + (float)(i - y1) * dbx_step;
-
-				float tex_su = u1 + (float)(i - y1) * du1_step;
-				float tex_sv = v1 + (float)(i - y1) * dv1_step;
-				float tex_sw = w1 + (float)(i - y1) * dw1_step;
-
-				float tex_eu = u1 + (float)(i - y1) * du2_step;
-				float tex_ev = v1 + (float)(i - y1) * dv2_step;
-				float tex_ew = w1 + (float)(i - y1) * dw2_step;
-
-				if (ax > bx)
-				{
-					std::swap(ax, bx);
-					std::swap(tex_su, tex_eu);
-					std::swap(tex_sv, tex_ev);
-					std::swap(tex_sw, tex_ew);
-				}
-
-				tex_u = tex_su;
-				tex_v = tex_sv;
-				tex_w = tex_sw;
-
-				float tstep = 1.0f / ((float)(bx - ax));
-				float t = 0.0f;
-
-				for (int j = ax; j < bx; j++)
-				{
-					tex_u = (1.0f - t) * tex_su + t * tex_eu;
-					tex_v = (1.0f - t) * tex_sv + t * tex_ev;
-					tex_w = (1.0f - t) * tex_sw + t * tex_ew;
-					if (tex_w > pDepthBuffer[i*ScreenSize().x + j])
-					{
-						//draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
-
-						draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w},  {1.0f,1.0f}), {float(j),float(i)});
-
-						//Draw(j, i, tex->Sample(tex_u / tex_w, tex_v / tex_w));
-						pDepthBuffer[i*ScreenSize().x + j] = tex_w;
-					}
-					t += tstep;
-				}
-
-			}
-		}
-
-		dy1 = y3 - y2;
-		dx1 = x3 - x2;
-		dv1 = v3 - v2;
-		du1 = u3 - u2;
-		dw1 = w3 - w2;
-
-		if (dy1) dax_step = dx1 / (float)abs(dy1);
-		if (dy2) dbx_step = dx2 / (float)abs(dy2);
-
-		du1_step = 0, dv1_step = 0;
-		if (dy1) du1_step = du1 / (float)abs(dy1);
-		if (dy1) dv1_step = dv1 / (float)abs(dy1);
-		if (dy1) dw1_step = dw1 / (float)abs(dy1);
-
-		if (dy1)
-		{
-			for (int i = y2; i <= y3; i++)
-			{
-				int ax = x2 + (float)(i - y2) * dax_step;
-				int bx = x1 + (float)(i - y1) * dbx_step;
-
-				float tex_su = u2 + (float)(i - y2) * du1_step;
-				float tex_sv = v2 + (float)(i - y2) * dv1_step;
-				float tex_sw = w2 + (float)(i - y2) * dw1_step;
-
-				float tex_eu = u1 + (float)(i - y1) * du2_step;
-				float tex_ev = v1 + (float)(i - y1) * dv2_step;
-				float tex_ew = w1 + (float)(i - y1) * dw2_step;
-
-				if (ax > bx)
-				{
-					std::swap(ax, bx);
-					std::swap(tex_su, tex_eu);
-					std::swap(tex_sv, tex_ev);
-					std::swap(tex_sw, tex_ew);
-				}
-
-				tex_u = tex_su;
-				tex_v = tex_sv;
-				tex_w = tex_sw;
-
-				float tstep = 1.0f / ((float)(bx - ax));
-				float t = 0.0f;
-
-				for (int j = ax; j < bx; j++)
-				{
-					tex_u = (1.0f - t) * tex_su + t * tex_eu;
-					tex_v = (1.0f - t) * tex_sv + t * tex_ev;
-					tex_w = (1.0f - t) * tex_sw + t * tex_ew;
-
-					if (tex_w > pDepthBuffer[i*ScreenSize().x + j])
-					{
-
-						//draw.Image(tex,{float(j),float(i)});
-						//draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
-						draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1.0f,1.0f}), {float(j),float(i)});
-
-						pDepthBuffer[i*ScreenSize().x + j] = tex_w;
-					}
-					t += tstep;
-				}
-			}	
-		}		
-	}
-
-
-
-
-
-
-	
-
 
 
 	void DrawRectwithPos(olc::vf2d pos, float size){
@@ -744,9 +401,13 @@ public:
 	bool OnUserUpdate(float fElapsedTime) override
 	{
 
-		// // Yaw
+
+		draw.Clear(olc::Colour::VERY_DARK_BLUE);
+		draw.FilledRect({ 0, 0 }, draw.GetTargetSize(), olc::Colour::WHITE, olc::Colour::YELLOW, olc::Colour::CYAN, olc::Colour::MAGENTA);
+
+		// Yaw
 		// if (keyboard.GetKey(olc::Key::LEFT).bHeld)
-		// 	vCamera.y -= 2.0f * fElapsedTime;
+		// 	matViewRotate.y -= 2.0f * fElapsedTime;
 		// if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
 		// 	matViewRotate.y += 2.0f * fElapsedTime;
 
@@ -776,11 +437,11 @@ public:
 		if (keyboard.GetKey(olc::Key::DOWN).bHeld)
 			vCamera.y -= 8.0f * fElapsedTime;	// Travel Downwards
 
-		// Dont use these two in FPS mode, it is confusing :P
-		if (keyboard.GetKey(olc::Key::LEFT).bHeld)
-			vCamera.x -= 8.0f * fElapsedTime;	// Travel Along X-Axis
-		if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
-			vCamera.x += 8.0f * fElapsedTime;	// Travel Along X-Axis
+		// // Dont use these two in FPS mode, it is confusing :P
+		// if (keyboard.GetKey(olc::Key::LEFT).bHeld)
+		// 	vCamera.x -= 8.0f * fElapsedTime;	// Travel Along X-Axis
+		// if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
+		// 	vCamera.x += 8.0f * fElapsedTime;	// Travel Along X-Axis
 
 		// Standard FPS Control scheme, but turn instead of strafe
 		if (keyboard.GetKey(olc::Key::W).bHeld)
@@ -796,25 +457,12 @@ public:
 			fYaw += 2.0f * fElapsedTime;
 
 
+		//olc::mf4d matRotZ, matRotX;
+		//fTheta += 1.0f * fElapsedTime; // Uncomment to spin me right round baby right round
 
-		// Set up "World Tranmsform" though not updating theta 
-		// makes this a bit redundant
-		olc::mf4d matRotZ, matRotX;
-		fTheta += 1.0f * fElapsedTime; // Uncomment to spin me right round baby right round
-
-		matRotZ.rotateZ(fTheta * 0.5f);
-		matRotX.rotateX(fTheta);
+		// matRotZ.rotateZ(fTheta * 0.5f);
+		// matRotX.rotateX(fTheta);
 		
-		olc::mf4d matTrans;
-		matTrans.translate(0.0f, 0.0f, 5.0f);
-
-
-		olc::mf4d matWorld;
-		matWorld.identity();
-
-		matWorld = matRotX * matRotY;
-		matWorld = matWorld * matTrans;
-
 		// Create "Point At" Matrix for camera
 		olc::vf4d vUp = { 0,1,0 };
 		olc::vf4d vTarget = { 0,0,1 };
@@ -824,257 +472,36 @@ public:
 		vTarget = vCamera + vLookDir;
 		olc::mf4d matCamera = Matrix_PointAt(vCamera, vTarget, vUp);
 
-		// Make view matrix from camera
-		olc::mf4d matView;
 		matView = matCamera.invert();
 
-		// Store triagles for rastering later
-
-
-		// // Draw Triangles
-		for (auto tri : trianglesMesh.tris)
-		{
-			triangle triProjected, triTransformed, triViewed;
-
-			// //World Matrix Transform
-			
-			// triTransformed.p[0] = Matrix_MultiplyVector(matWorld, tri.p[0]);
-			// triTransformed.p[1] = Matrix_MultiplyVector(matWorld, tri.p[1]);
-			// triTransformed.p[2] = Matrix_MultiplyVector(matWorld, tri.p[2]);
-			triTransformed.p[0] = matWorld * tri.p[0];
-			triTransformed.p[1] = matWorld * tri.p[1];
-			triTransformed.p[2] = matWorld * tri.p[2];
-			triTransformed.t[0] = tri.t[0];
-			triTransformed.t[1] = tri.t[1];
-			triTransformed.t[2] = tri.t[2];
-			
-			// // catch(std::exception const & ex)  {
-
-			// // 	printf("%s", ex);
-
-			// // };
-
-			// Calculate triangle Normal
-			olc::vf4d normal, line1, line2;
-
-			// Get lines either side of triangle
-			line1 = triTransformed.p[1] - triTransformed.p[0];
-			line2 = triTransformed.p[2] - triTransformed.p[0];
-
-			// Take cross product of lines to get normal to triangle surface
-			normal = line1.cross(line2);
-
-			// You normally need to normalise a normal!
-			normal = normal.norm();
-			
-			// Get Ray from triangle to camera
-			olc::vf4d vCameraRay = triTransformed.p[0] - vCamera;
-
-			//If ray is aligned with normal, then triangle is visible
-
-			if (Vector_DotProduct(normal, vCameraRay) < 0.0f)
-			{
-				// Illumination
-				olc::vf4d light_direction = { 0.0f, 1.0f, -1.0f };
-				light_direction = light_direction.norm();
-
-				// How "aligned" are light direction and triangle surface normal?
-				float dp = std::max(0.1f, Vector_DotProduct(light_direction, normal));
-
-				// Choose console colours as required (much easier with RGB)				
-				triTransformed.col = olc::Pixel(dp * 255, dp * 255, dp * 255);
-
-
-				// Convert World Space --> View Space
-				triViewed.p[0] = matWorld * triTransformed.p[0];
-				triViewed.p[1] = matWorld * triTransformed.p[1];
-				triViewed.p[2] = matWorld * triTransformed.p[2];
-				triViewed.col = triTransformed.col;
-				triViewed.t[0] = triTransformed.t[0];
-				triViewed.t[1] = triTransformed.t[1];
-				triViewed.t[2] = triTransformed.t[2];
-
-				// Clip Viewed Triangle against near plane, this could form two additional
-				// additional triangles. 
-				int nClippedTriangles = 0;
-				triangle clipped[2];
-				nClippedTriangles = Triangle_ClipAgainstPlane({ 0.0f, 0.0f, 0.1f }, { 0.0f, 0.0f, 1.0f }, triViewed, clipped[0], clipped[1]);
-
-				// We may end up with multiple triangles form the clip, so project as
-				// required
-				for (int n = 0; n < nClippedTriangles; n++)
-				{
-					// Project triangles from 3D --> 2D
-					triProjected.p[0] = matProj * clipped[n].p[0];
-					triProjected.p[1] = matProj * clipped[n].p[1];
-					triProjected.p[2] = matProj * clipped[n].p[2];
-					triProjected.col = clipped[n].col;
-					triProjected.t[0] = clipped[n].t[0];
-					triProjected.t[1] = clipped[n].t[1];
-					triProjected.t[2] = clipped[n].t[2];
-
-
-					triProjected.t[0].u = triProjected.t[0].u / triProjected.p[0].w;
-					triProjected.t[1].u = triProjected.t[1].u / triProjected.p[1].w;
-					triProjected.t[2].u = triProjected.t[2].u / triProjected.p[2].w;
-
-					triProjected.t[0].v = triProjected.t[0].v / triProjected.p[0].w;
-					triProjected.t[1].v = triProjected.t[1].v / triProjected.p[1].w;
-					triProjected.t[2].v = triProjected.t[2].v / triProjected.p[2].w;
-
-					triProjected.t[0].w = 1.0f / triProjected.p[0].w;
-					triProjected.t[1].w = 1.0f / triProjected.p[1].w;
-					triProjected.t[2].w = 1.0f / triProjected.p[2].w;
-
-
-					// Scale into view, we moved the normalising into cartesian space
-					// out of the matrix.vector function from the previous videos, so
-					// do this manually
-
-
-					triProjected.p[0] = Vector_Div(triProjected.p[0], triProjected.p[0].w);
-					triProjected.p[1] = Vector_Div(triProjected.p[1], triProjected.p[1].w);
-					triProjected.p[2] = Vector_Div(triProjected.p[2], triProjected.p[2].w);
-
-					// X/Y are inverted so put them back
-					triProjected.p[0].x *= -1.0f;
-					triProjected.p[1].x *= -1.0f;
-					triProjected.p[2].x *= -1.0f;
-					triProjected.p[0].y *= -1.0f;
-					triProjected.p[1].y *= -1.0f;
-					triProjected.p[2].y *= -1.0f;
-
-					// // Offset verts into visible normalised space
-					olc::vf4d vOffsetView = { 1,1,0 };
-					triProjected.p[0] = (triProjected.p[0] + vOffsetView);
-					triProjected.p[1] = (triProjected.p[1] + vOffsetView);
-					triProjected.p[2] = (triProjected.p[2] + vOffsetView);
-					triProjected.p[0].x *= 0.5f * (float)ScreenSize().x;
-					triProjected.p[0].y *= 0.5f * (float)ScreenSize().y;
-					triProjected.p[1].x *= 0.5f * (float)ScreenSize().x;
-					triProjected.p[1].y *= 0.5f * (float)ScreenSize().y;
-					triProjected.p[2].x *= 0.5f * (float)ScreenSize().x;
-					triProjected.p[2].y *= 0.5f * (float)ScreenSize().y;
-
-
-					// triProjected.p[0] += vOffsetView;
-					// triProjected.p[1] += (triProjected.p[1] + vOffsetView);
-					// triProjected.p[2] += (triProjected.p[2] + vOffsetView);
-
-					// triProjected.p[0].x *= (0.5f * (float)ScreenSize().x);
-					// triProjected.p[0].y *= (0.5f * (float)ScreenSize().y);
-					// triProjected.p[1].x *= (0.5f * (float)ScreenSize().x);
-					// triProjected.p[1].y *= (0.5f * (float)ScreenSize().y);
-					// triProjected.p[2].x *= (0.5f * (float)ScreenSize().x);
-					// triProjected.p[2].y *= (0.5f * (float)ScreenSize().y);
-
-					// Store triangle for sorting
-					trianglesMesh.vecTrianglesToRaster.push_back(triProjected);
-				}			
-			}
-		}
-
-		//Sort triangles from back to front
-		// sort(trianglesMesh.vecTrianglesToRaster.begin(), trianglesMesh.vecTrianglesToRaster.end(), [](triangle &t1, triangle &t2)
-		// {
-		// 	float z1 = (t1.p[0].z + t1.p[1].z + t1.p[2].z) / 3.0f;
-		// 	float z2 = (t2.p[0].z + t2.p[1].z + t2.p[2].z) / 3.0f;
-		// 	return z1 > z2;
-		// });
-
-		draw.Clear(olc::Colour::VERY_DARK_BLUE);
-
-		// Clear Depth Buffer
-		for (int i = 0; i < ScreenSize().x * ScreenSize().y; i++)
-			pDepthBuffer[i] = 0.0f;
-
-		draw.FilledRect({ 0, 0 }, draw.GetTargetSize(), olc::Colour::WHITE, olc::Colour::YELLOW, olc::Colour::CYAN, olc::Colour::MAGENTA);
-
-		
 		draw.SetViewMatrix(matView);
-		draw.SetModelMatrix(matView);
+
+
+
+
+		matTrans.translate(planeOffset, 0, planeOffset);
+		matWorld = matTrans;
+		
+		draw.SetModelMatrix(matWorld);
+
 		draw.SetCullMode(olc::CullMode::CounterClockWise);
-
-
-		// Loop through all transformed, viewed, projected, and sorted triangles
-		for (auto &triToRaster : trianglesMesh.vecTrianglesToRaster)
-		{
-			// Clip triangles against all four screen edges, this could yield
-			// a bunch of triangles, so create a queue that we traverse to 
-			//  ensure we only test new triangles generated against planes
-			triangle clipped[2];
-
-			// Add initial triangle
-			trianglesMesh.triangles.push_back(triToRaster);
-			int nNewTriangles = 1;
-
-			for (int p = 0; p < 4; p++)
-			{
-				int nTrisToAdd = 0;
-				while (nNewTriangles > 0)
-				{
-					// Take triangle from front of queue
-					triangle test = trianglesMesh.triangles.front();
-					trianglesMesh.triangles.pop_front();
-					nNewTriangles--;
-
-					// Clip it against a plane. We only need to test each 
-					// subsequent plane, against subsequent new triangles
-					// as all triangles after a plane clip are guaranteed
-					// to lie on the inside of the plane. I like how this
-					// comment is almost completely and utterly justified
-					switch (p)
-					{
-					case 0:	nTrisToAdd = Triangle_ClipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
-					case 1:	nTrisToAdd = Triangle_ClipAgainstPlane({ 0.0f, (float)ScreenSize().y - 1, 0.0f }, { 0.0f, -1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
-					case 2:	nTrisToAdd = Triangle_ClipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
-					case 3:	nTrisToAdd = Triangle_ClipAgainstPlane({ (float)ScreenSize().x - 1, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
-					}
-
-					// Clipping may yield a variable number of triangles, so
-					// add these new ones to the back of the queue for subsequent
-					// clipping against next planes
-					for (int w = 0; w < nTrisToAdd; w++)
-						trianglesMesh.triangles.push_back(clipped[w]);
-				}
-				nNewTriangles = trianglesMesh.triangles.size();
-			}
 		
+		draw.Mesh(mesh2Dplane.layout, mesh2Dplane.pos, mesh2Dplane.col, mesh2Dplane.uv, im2DPlane);
+
+		matWorld.translate(0,0,0);
+		draw.SetModelMatrix(matWorld);
 
 
-			
+		draw.Line({ 0,100,0 }, { 100, 100, 0 }, olc::Colour::RED);
+		draw.Line({ 0,100,0 }, { 0, 200, 0 }, olc::Colour::GREEN);
+		draw.Line({ 0,100,0 }, { 0, 100, 100 }, olc::Colour::BLUE);
+		draw.Line({ 0,100,0 }, { -100, 100, 0 }, olc::Colour::RED);
+		draw.Line({ 0,100,0 }, { 0, 0, 0 }, olc::Colour::GREEN);
+		draw.Line({ 0,100,0 }, { 0, 100, -100 }, olc::Colour::BLUE);
 
-
-			// Draw the transformed, viewed, clipped, projected, sorted, clipped triangles
-			
-			for (auto &t : trianglesMesh.triangles)
-			{
-				// TexturedTriangle(
-				// 	t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
-				// 	t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
-				// 	t.p[2].x, t.p[2].y, t.t[2].u, t.t[2].v, t.t[2].w, 
-				// 	sprtex1
-				// );
-
-				olc::vf2d tp1;
-				olc::vf2d tp2;
-				olc::vf2d tp3;
-				tp1 = {t.p[0].x, t.p[0].y};
-				tp2 = {t.p[1].x, t.p[1].y};
-				tp3 = {t.p[2].x, t.p[2].y};
-
-				//draw.Mesh(trianglesMesh.layout, t.p, trianglesMesh.col);
-				draw.FilledTriangle(tp1, tp2, tp3, t.col);
-			}
-		}
-
-
-
-		
-
-		draw.Mesh(mesh2Dplane.layout, {}, mesh2Dplane.col, mesh2Dplane.uv, im2DPlane);
-
-
+		// Decompose the quaternion to demonstrate the structured binding support
+		const auto [x, y, z, w] = vTarget;
+		draw.String({ 4, 4 }, std::format("X:{: 4.1f}  Y:{: 4.1f}  Z:{: 4.1f}  W:{: 4.1f}", x, y, z, w), olc::Colour::BLACK);
 
 
 		olc::vf2d cpos = {float(ScreenSize().x / 2), float(ScreenSize().y /2)};
