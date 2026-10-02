@@ -92,9 +92,9 @@ public:
 	struct triangle
 	{
 		//olc::vf4d p[3];
-		std::vector<olc::vf4d> p;
-		std::vector<olc::vf4d> norm;
-		std::vector<vec2d> t;
+		std::array<olc::vf4d, 3> p;
+		std::array<olc::vf4d, 3> norm;
+		std::array<vec2d, 3> t;
 		std::vector<olc::vf2d> uv;
 		olc::Pixel col;
 
@@ -161,8 +161,26 @@ public:
 
 	// mat4x4 Matrix_MakeProjection
 	// olc::mf4d example.projection(float fFovDegrees, float fAspectRatio, float fNear, float fFar)
+	olc::vf4d Matrix_MultiplyVector(olc::mf4d m, olc::vf4d &i)
+	{
+		olc::vf4d v;
+		v.x = i.x * m.idx(0,0) + i.y * m.idx(1,0) + i.z * m.idx(2,0) + i.w * m.idx(3,0);
+		v.y = i.x * m.idx(0,1) + i.y * m.idx(1,1) + i.z * m.idx(2,1) + i.w * m.idx(3,1);
+		v.z = i.x * m.idx(0,2) + i.y * m.idx(1,2) + i.z * m.idx(2,2) + i.w * m.idx(3,2);
+		v.w = i.x * m.idx(0,3) + i.y * m.idx(1,3) + i.z * m.idx(2,3) + i.w * m.idx(3,3);
+		return v;
+	}
 
-
+	// template<typename Q>
+	// olc::vf4d Matrix_MultiplyVector(olc::mf4d me, olc::v_4d<Q>& v)
+	// {
+	// 	olc::v_4d<Q> vOut;
+	// 	vOut.x = Q(me(0, 0) * v.x + me(1, 0) * v.y + me(2, 0) * v.z + me(3, 0) * v.w);
+	// 	vOut.y = Q(me(0, 1) * v.x + me(1, 1) * v.y + me(2, 1) * v.z + me(3, 1) * v.w);
+	// 	vOut.z = Q(me(0, 2) * v.x + me(1, 2) * v.y + me(2, 2) * v.z + me(3, 2) * v.w);
+	// 	vOut.w = Q(me(0, 3) * v.x + me(1, 3) * v.y + me(2, 3) * v.z + me(3, 3) * v.w);
+	// 	return vOut;
+	// }
 
 	float Vector_DotProduct(olc::vf4d &v1, olc::vf4d &v2)
 	{
@@ -460,9 +478,9 @@ public:
 					tex_w = (1.0f - t) * tex_sw + t * tex_ew;
 					if (tex_w > pDepthBuffer[i*ScreenSize().x + j])
 					{
-						//draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
+						draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
 
-						draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1,1}), {float(j),float(i)});
+						//draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1,1}), {float(j),float(i)});
 
 						//Draw(j, i, tex->Sample(tex_u / tex_w, tex_v / tex_w));
 						pDepthBuffer[i*ScreenSize().x + j] = tex_w;
@@ -527,8 +545,8 @@ public:
 					{
 
 						//draw.Image(tex,{float(j),float(i)});
-						//draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
-						draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1,1}), {float(j),float(i)});
+						draw.Pixel({float(j),float(i)}, tex.Sample({tex_u / tex_w, tex_v / tex_w}));
+						//draw.Image(tex.region({tex_u / tex_w, tex_v / tex_w}, {1,1}), {float(j),float(i)});
 
 						pDepthBuffer[i*ScreenSize().x + j] = tex_w;
 					}
@@ -640,8 +658,11 @@ public:
 
 		for (int i = 0; i < postuff.size(); i ++) {
 			triangle t;
-			t.p = postuff[i];
-			t.t = uvstuff[i];
+			for (int x = 0; x < 3; x++){
+				t.p[x] = postuff[i][x];
+				t.t[x] = uvstuff[i][x];
+			}
+
 			trianglesMesh.tris.push_back(t);
 		}
 
@@ -789,13 +810,23 @@ public:
 		{
 			triangle triProjected, triTransformed, triViewed;
 
-			// World Matrix Transform
+			// //World Matrix Transform
+			
+			// triTransformed.p[0] = Matrix_MultiplyVector(matWorld, tri.p[0]);
+			// triTransformed.p[1] = Matrix_MultiplyVector(matWorld, tri.p[1]);
+			// triTransformed.p[2] = Matrix_MultiplyVector(matWorld, tri.p[2]);
 			triTransformed.p[0] = matWorld * tri.p[0];
 			triTransformed.p[1] = matWorld * tri.p[1];
 			triTransformed.p[2] = matWorld * tri.p[2];
 			triTransformed.t[0] = tri.t[0];
 			triTransformed.t[1] = tri.t[1];
 			triTransformed.t[2] = tri.t[2];
+			
+			// // catch(std::exception const & ex)  {
+
+			// // 	printf("%s", ex);
+
+			// // };
 
 			// Calculate triangle Normal
 			olc::vf4d normal, line1, line2;
@@ -813,7 +844,7 @@ public:
 			// Get Ray from triangle to camera
 			olc::vf4d vCameraRay = triTransformed.p[0] - vCamera;
 
-			// If ray is aligned with normal, then triangle is visible
+			//If ray is aligned with normal, then triangle is visible
 
 			if (Vector_DotProduct(normal, vCameraRay) < 0.0f)
 			{
@@ -829,9 +860,9 @@ public:
 
 
 				// Convert World Space --> View Space
-				triViewed.p[0] = matView * triTransformed.p[0];
-				triViewed.p[1] = matView *triTransformed.p[1];
-				triViewed.p[2] = matView * triTransformed.p[2];
+				triViewed.p[0] = matWorld * triTransformed.p[0];
+				triViewed.p[1] = matWorld * triTransformed.p[1];
+				triViewed.p[2] = matWorld * triTransformed.p[2];
 				triViewed.col = triTransformed.col;
 				triViewed.t[0] = triTransformed.t[0];
 				triViewed.t[1] = triTransformed.t[1];
