@@ -63,16 +63,12 @@ public:
 	olc::mf4d matRotX;
 	olc::mf4d matRotY;
 
-	// Matrices for the 3D Projection and view transforms.
 	olc::mf4d matView;
-	olc::mf4d matViewRotateX;
-	olc::mf4d matViewRotateY;
-	olc::mf4d matViewRotateZ;
 
-	olc::mf4d mViewTranslate;
-	// Position in 3D space of "the camera"
-	olc::vf4d matViewTranslate = { -150.0f, -150.0f, -200.0f };
-	olc::vf4d matViewRotate = { 2.5f, 0.0f, 0.0f };
+
+
+
+
 
 
 	int planelength = 800;
@@ -133,6 +129,8 @@ public:
 	olc::vf4d vCamera;	// Location of camera in world space
 	olc::vf4d vLookDir;	// Direction vector along the direction camera points
 	float fYaw;			// FPS Camera rotation in XZ plane
+	float fPitch;			// FPS Camera rotation in XZ plane
+
 	float fTheta;		// Spins World transform
 
 
@@ -202,6 +200,7 @@ public:
 		float dotprod = Vector_DotProduct(up, newForward);
 		olc::vf4d a = Vector_Mul(newForward, dotprod);
 
+		
 		olc::vf4d newUp = up - a;
 
 		newUp = newUp.norm();
@@ -353,7 +352,7 @@ public:
 
 		pDepthBuffer = new float[ScreenSize().x * ScreenSize().y];
 
-		matProj.perspective(90.0f * 3.14159f / 180.0f, float(ScreenSize().x) / float(ScreenSize().y), 0.1f, 1600.0f);
+		matProj.perspective(60.0f * 3.14159f / 180.0f, float(ScreenSize().x) / float(ScreenSize().y), 0.1f, 1600.0f);
 
 		draw.SetProjectionMatrix(matProj);
 		
@@ -432,16 +431,19 @@ public:
 		// mouse.GetWheel()
 		// mouse.GetButton(0).bHeld / bPressed / bClicked / bScrolled
 		
-		if (keyboard.GetKey(olc::Key::UP).bHeld)
+		if (keyboard.GetKey(olc::Key::Q).bHeld)
 			vCamera.y += 8.0f * fElapsedTime;	// Travel Upwards
-		if (keyboard.GetKey(olc::Key::DOWN).bHeld)
+		if (keyboard.GetKey(olc::Key::E).bHeld)
 			vCamera.y -= 8.0f * fElapsedTime;	// Travel Downwards
 
-		// // Dont use these two in FPS mode, it is confusing :P
-		// if (keyboard.GetKey(olc::Key::LEFT).bHeld)
-		// 	vCamera.x -= 8.0f * fElapsedTime;	// Travel Along X-Axis
-		// if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
-		// 	vCamera.x += 8.0f * fElapsedTime;	// Travel Along X-Axis
+		// Dont use these two in FPS mode, it is confusing :P
+		if (keyboard.GetKey(olc::Key::LEFT).bHeld)
+			vCamera.x -= 8.0f * fElapsedTime;	// Travel Along X-Axis
+		if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
+			vCamera.x += 8.0f * fElapsedTime;	// Travel Along X-Axis
+
+
+
 
 		// Standard FPS Control scheme, but turn instead of strafe
 		if (keyboard.GetKey(olc::Key::W).bHeld)
@@ -457,29 +459,37 @@ public:
 			fYaw += 2.0f * fElapsedTime;
 
 
-		//olc::mf4d matRotZ, matRotX;
-		//fTheta += 1.0f * fElapsedTime; // Uncomment to spin me right round baby right round
+		if (keyboard.GetKey(olc::Key::UP).bHeld)
+			fPitch -= 2.0f * fElapsedTime;
 
-		// matRotZ.rotateZ(fTheta * 0.5f);
-		// matRotX.rotateX(fTheta);
+		if (keyboard.GetKey(olc::Key::DOWN).bHeld)
+			fPitch += 2.0f * fElapsedTime;
+
 		
 		// Create "Point At" Matrix for camera
-		olc::vf4d vUp = { 0,1,0 };
+		olc::vf4d vUp = { 0,-1,0 };
 		olc::vf4d vTarget = { 0,0,1 };
-		olc::mf4d matCameraRot;
-		matCameraRot.rotateY(fYaw);
-		vLookDir = matCameraRot * vTarget;
+		olc::mf4d matCameraRotY;
+		olc::mf4d matCameraRotX;
+
+		matCameraRotY.rotateY(fYaw);
+		matCameraRotX.rotateX(fPitch);
+
+		vLookDir = matCameraRotY * vTarget;
+
 		vTarget = vCamera + vLookDir;
 		olc::mf4d matCamera = Matrix_PointAt(vCamera, vTarget, vUp);
 
 		matView = matCamera.invert();
 
 		draw.SetViewMatrix(matView);
+	
 
 
 
 
 		matTrans.translate(planeOffset, 0, planeOffset);
+	
 		matWorld = matTrans;
 		
 		draw.SetModelMatrix(matWorld);
