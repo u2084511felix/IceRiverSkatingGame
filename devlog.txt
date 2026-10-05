@@ -1,0 +1,25 @@
+Initial ideas:
+
+3d (first / third) person river ice skating game. 
+
+The core game challenge will relate to the theme of "Changes" - The ice skater will be skating in early spring somewhere in some northern country.
+Parts of the river will be too thin to skate on. These will be visually noticable as slightly clearer patches on the river.
+The objective will be to to avoid skating over these patches to avoid falling into the icy river.
+
+Core mechanics.
+
+
+Movement mechanics:
+WASD {
+    w = skate forward.
+    a = lean left.
+    s = break.
+    d = lean right.
+}
+
+W + (A/D) lean + stepover (left/right).
+S + (A/D) skid lead foot.
+Shift + S = two footed hard break.
+
+SPACE = Jump
+TAB = toggle crouch (increases speed)
