@@ -1,0 +1,4 @@
+[submodule "third_party/olcPixelGameEngine3"]
+	path = third_party/olcPixelGameEngine3
+	url = https://github.com/OneLoneCoder/olcPixelGameEngine3.git
+	branch = develop

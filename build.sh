@@ -22,6 +22,7 @@ set +a
 #   -sLLD_REPORT_UNDEFINED \
 #   -o SeasonsChange.html
 
+
 em++ \
   src/main.cpp \
   -Ithird_party/olcPixelGameEngine3 \
@@ -36,3 +37,7 @@ em++ \
   -sUSE_LIBPNG=1 \
   -sLLD_REPORT_UNDEFINED \
   -o dist/index.html
+
+
+
+  #g++ -ggdb src/main.cpp -o build/cube -std=c++20 -lpng -lGL -lX11 -lXi -lpthread -Ithird_party/olcPixelGameEngine3
